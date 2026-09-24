@@ -52,6 +52,17 @@ describe("theme helpers", () => {
     invalidateCustomThemeCache();
   });
 
+  it("uses the managed theme setting ahead of the saved preference", () => {
+    vi.mocked(getTheme).mockReturnValue("nord");
+    vi.mocked(fs.readFileSync).mockImplementation((file) => {
+      if (String(file).endsWith("managed-settings.json"))
+        return '{"theme":"custom"}';
+      return redTheme.json;
+    });
+
+    expect(resolveTheme()).toBe("custom");
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -579,7 +590,11 @@ describe("theme helpers", () => {
     expect(resolveTheme()).toBe("custom");
     expect(resolveTheme()).toBe("custom");
     expect(resolveTheme()).toBe("custom");
-    expect(fs.readFileSync).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(fs.readFileSync).mock.calls.filter(
+        ([file]) => file === customThemePath(),
+      ),
+    ).toHaveLength(1);
   });
 
   it("serves hasCustomTheme and getThemeCss from the same cached read", () => {
@@ -588,7 +603,11 @@ describe("theme helpers", () => {
     expect(hasCustomTheme()).toBe(true);
     expect(getThemeCss("custom")).toBe(redTheme.css);
     expect(resolveTheme()).toBe("custom");
-    expect(fs.readFileSync).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(fs.readFileSync).mock.calls.filter(
+        ([file]) => file === customThemePath(),
+      ),
+    ).toHaveLength(1);
   });
 
   it("caches the absence of custom-theme.json rather than retrying the read", () => {
