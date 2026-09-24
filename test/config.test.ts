@@ -1,4 +1,4 @@
-import { describe, it, expect, expectTypeOf, beforeEach } from "vitest";
+import { describe, it, expect, expectTypeOf, beforeEach, vi } from "vitest";
 import type { ThemeName } from "../src/theme";
 
 // Import the real config module. A hand-written stand-in can reproduce its own defaults and hide production defects.
@@ -49,6 +49,16 @@ import type {
   ClassicalStartPageId,
   MusicServiceId,
 } from "../src/musicService";
+
+// getManagedConfigValue() reads managed-settings.json on every lookup, so the default
+// implementation reports the file absent, which is the state on a machine without Home Manager.
+const fsMock = vi.hoisted(() => ({
+  readFileSync: vi.fn<(file: string, encoding: string) => string>(() => {
+    throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+  }),
+}));
+
+vi.mock("fs", () => ({ default: fsMock, ...fsMock }));
 
 // Compare accessors with StoreSchema so type drift fails at the config boundary.
 // Vitest does not type-check. `npx tsc -p tsconfig.test.json --noEmit`, run by `just lint`, enforces expectTypeOf assertions.
@@ -202,6 +212,32 @@ describe("Config store runtime behaviour", () => {
 
   beforeEach(() => {
     store.clear();
+    // A managed file absent is the state on a machine without Home Manager, and is the
+    // default every other case in this file relies on to reach the store.
+    fsMock.readFileSync.mockReset();
+    fsMock.readFileSync.mockImplementation(() => {
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+  });
+
+  it("a managed value wins over a stored preference", () => {
+    setTheme("nord");
+    fsMock.readFileSync.mockReturnValue('{"theme":"custom"}');
+
+    expect(getTheme()).toBe("custom");
+  });
+
+  it("a managed value wins over a stored optional preference", () => {
+    store.set("storefront", "gb");
+    fsMock.readFileSync.mockReturnValue('{"storefront":"us"}');
+
+    expect(getStorefront()).toBe("us");
+  });
+
+  it("falls back to the stored preference when no managed file exists", () => {
+    setTheme("nord");
+
+    expect(getTheme()).toBe("nord");
   });
 
   it("getStorefront returns undefined when not set", () => {

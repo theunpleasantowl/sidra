@@ -3,7 +3,10 @@
  * getters so an absent storefront still triggers the system-region fallback.
  */
 import { Conf } from 'electron-conf/main';
+import { app } from 'electron';
 import log from 'electron-log/main';
+import fs from 'fs';
+import path from 'path';
 import type { ThemeName } from './theme';
 import {
   DEFAULT_SERVICE_ID,
@@ -15,6 +18,24 @@ import {
 } from './musicService';
 
 const configLog = log.scope('config');
+const managedSettingsPath = () => path.join(app.getPath('userData'), 'managed-settings.json');
+
+/** Read a declarative setting from Sidra's Home Manager settings file. */
+function getManagedConfigValue(key: keyof StoreSchema): unknown {
+  try {
+    let value: unknown = JSON.parse(fs.readFileSync(managedSettingsPath(), 'utf-8'));
+    for (const part of key.split('.')) {
+      if (typeof value !== 'object' || value === null || !Object.hasOwn(value, part))
+        return undefined;
+      value = (value as Record<string, unknown>)[part];
+    }
+    return value;
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code !== 'ENOENT') configLog.warn('Failed to read managed-settings.json', error);
+    return undefined;
+  }
+}
 
 /** A play held for later Last.fm submission, with a timestamp in Unix seconds. */
 export interface PendingScrobble {
@@ -50,6 +71,8 @@ const store = new Conf<StoreSchema>();
 
 /** Reads a key, or the caller's default when the user has never set it. */
 function getConfigValue<K extends keyof StoreSchema>(key: K, defaultValue: StoreSchema[K]): StoreSchema[K] {
+  const managed = getManagedConfigValue(key);
+  if (managed !== undefined) return managed as StoreSchema[K];
   if (!store.has(key)) return defaultValue;
   return store.get(key);
 }
@@ -60,6 +83,8 @@ function getConfigValue<K extends keyof StoreSchema>(key: K, defaultValue: Store
  * locale, while a stored null is the user's own choice.
  */
 function getConfigValueOptional<K extends keyof StoreSchema>(key: K): StoreSchema[K] | undefined {
+  const managed = getManagedConfigValue(key);
+  if (managed !== undefined) return managed as StoreSchema[K];
   if (!store.has(key)) return undefined;
   return store.get(key);
 }
