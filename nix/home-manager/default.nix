@@ -90,7 +90,7 @@ let
       autoUpdate.enabled = cfg.settings.autoUpdate.enable;
     };
 
-  nullableOption = type: description: {
+  nullableOption = type: description: lib.mkOption {
     type = lib.types.nullOr type;
     default = null;
     inherit description;
