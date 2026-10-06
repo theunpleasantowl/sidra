@@ -247,10 +247,11 @@ describe("Config store runtime behaviour", () => {
   });
 
   it("isManaged reports whether a setting is managed declaratively", () => {
-    fsMock.readFileSync.mockReturnValue('{"theme":"custom","player":{"zoomFactor":1.25}}');
+    fsMock.readFileSync.mockReturnValue('{"theme":"custom","zoomFactor":1.25,"notifications":{"enabled":true}}');
     expect(isManaged("theme")).toBe(true);
-    expect(isManaged("zoomFactor")).toBe(false);
-    expect(isManaged("notifications.enabled")).toBe(false);
+    expect(isManaged("zoomFactor")).toBe(true);
+    expect(isManaged("notifications.enabled")).toBe(true);
+    expect(isManaged("discord.enabled")).toBe(false);
 
     fsMock.readFileSync.mockImplementation(() => {
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
