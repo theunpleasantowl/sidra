@@ -40,8 +40,9 @@ import {
   getStartPageFor,
   getLastPageUrlFor,
   setLastPageUrlFor,
+  isManaged,
 } from "../src/config";
-import type { PendingScrobble } from "../src/config";
+import type { PendingScrobble, StoreSchema } from "../src/config";
 import { Conf } from "electron-conf/main";
 import { DEFAULT_SERVICE_ID } from "../src/musicService";
 import type {
@@ -204,6 +205,11 @@ describe("Config store type assertions", () => {
       .parameter(0)
       .toEqualTypeOf<PendingScrobble[]>();
   });
+
+  it("isManaged accepts keyof StoreSchema and returns boolean", () => {
+    expectTypeOf(isManaged).parameter(0).toEqualTypeOf<keyof StoreSchema>();
+    expectTypeOf(isManaged).returns.toEqualTypeOf<boolean>();
+  });
 });
 
 describe("Config store runtime behaviour", () => {
@@ -238,6 +244,24 @@ describe("Config store runtime behaviour", () => {
     setTheme("nord");
 
     expect(getTheme()).toBe("nord");
+  });
+
+  it("isManaged reports whether a setting is managed declaratively", () => {
+    fsMock.readFileSync.mockReturnValue('{"theme":"custom","player":{"zoomFactor":1.25}}');
+    expect(isManaged("theme")).toBe(true);
+    expect(isManaged("zoomFactor")).toBe(false);
+    expect(isManaged("notifications.enabled")).toBe(false);
+
+    fsMock.readFileSync.mockImplementation(() => {
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    expect(isManaged("theme")).toBe(false);
+  });
+
+  it("setConfigValue ignores changes to declaratively managed keys", () => {
+    fsMock.readFileSync.mockReturnValue('{"theme":"custom"}');
+    setTheme("dracula");
+    expect(store.has("theme")).toBe(false);
   });
 
   it("getStorefront returns undefined when not set", () => {

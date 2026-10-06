@@ -95,6 +95,11 @@ let
     default = null;
     inherit description;
   };
+
+  themeSource = pkgs.writeText "sidra-custom-theme.json" (
+    builtins.toJSON (lib.filterAttrs (_: value: value != null) cfg.customTheme)
+  );
+  settingsSource = pkgs.writeText "sidra-managed-settings.json" (builtins.toJSON managedSettings);
 in
 {
   options.programs.sidra = {
@@ -226,15 +231,35 @@ in
 
   config = lib.mkIf cfg.enable {
     home.packages = lib.optional (cfg.package != null) cfg.package;
-    xdg.configFile."Sidra/custom-theme.json" = lib.mkIf (cfg.customTheme != null) {
-      source = pkgs.writeText "sidra-custom-theme.json" (
-        builtins.toJSON (lib.filterAttrs (_: value: value != null) cfg.customTheme)
-      );
-      force = false;
-    };
-    xdg.configFile."Sidra/managed-settings.json" = {
-      source = pkgs.writeText "sidra-managed-settings.json" (builtins.toJSON managedSettings);
-      force = true;
-    };
+
+    home.file = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
+      lib.optionalAttrs (cfg.customTheme != null) {
+        "Library/Application Support/Sidra/custom-theme.json" = {
+          source = themeSource;
+          force = false;
+        };
+      }
+      // {
+        "Library/Application Support/Sidra/managed-settings.json" = {
+          source = settingsSource;
+          force = true;
+        };
+      }
+    );
+
+    xdg.configFile = lib.mkIf (!pkgs.stdenv.hostPlatform.isDarwin) (
+      lib.optionalAttrs (cfg.customTheme != null) {
+        "Sidra/custom-theme.json" = {
+          source = themeSource;
+          force = false;
+        };
+      }
+      // {
+        "Sidra/managed-settings.json" = {
+          source = settingsSource;
+          force = true;
+        };
+      }
+    );
   };
 }

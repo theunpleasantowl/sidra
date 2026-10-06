@@ -47,7 +47,7 @@ export interface PendingScrobble {
   chosenByUser?: 0;
 }
 
-interface StoreSchema {
+export interface StoreSchema {
   storefront: string;
   language: string | null;
   'notifications.enabled': boolean;
@@ -68,6 +68,11 @@ interface StoreSchema {
 }
 
 const store = new Conf<StoreSchema>();
+
+/** Check whether a setting is managed declaratively. */
+export function isManaged(key: keyof StoreSchema): boolean {
+  return getManagedConfigValue(key) !== undefined;
+}
 
 /** Reads a key, or the caller's default when the user has never set it. */
 function getConfigValue<K extends keyof StoreSchema>(key: K, defaultValue: StoreSchema[K]): StoreSchema[K] {
@@ -94,6 +99,10 @@ function getConfigValueOptional<K extends keyof StoreSchema>(key: K): StoreSchem
  * rename cannot leave a stale key name in the log text.
  */
 function setConfigValue<K extends keyof StoreSchema>(key: K, value: StoreSchema[K]): void {
+  if (isManaged(key)) {
+    configLog.warn(`${key} is managed declaratively; cannot be set`);
+    return;
+  }
   store.set(key, value);
   configLog.info(`${key} set:`, value);
 }
